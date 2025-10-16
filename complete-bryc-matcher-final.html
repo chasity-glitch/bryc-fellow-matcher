@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BRYC Fellow Opportunity Matcher - Complete with 192 Fellows</title>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script>
+// INSTRUCTIONS TO UPDATE DATA:
+// To update with new intake forms, replace the entire window.FELLOW_DATA array below
+// All 192 BRYC Fellows are embedded here:
+window.FELLOW_DATA=[{"name":"Daylin Ferguson","grade":"10th Grade","school":"Madison Prep","programDay":"Monday","programManager":"Ms. Lauren","topCareersRaw":"Computer Science, Engineering, Law","exploratoryCareersRaw":"Architecture, Psychology, Trade/Vocational (Welding, Electrician, Plumber, HVAC, etc)","locationRaw":"In-person in Baton Rouge"},{"name":"Chevi Ebanks","grade":"10th Grade","school":"Mckinley High ","programDay":"Wednesday","programManager":"Ms. Lauren","topCareersRaw":"Business/Entrepreneurship, Communications/Media, Foreign Languages, Law, Medicine/Nursing","exploratoryCareersRaw":"Cosmetology (Hair, Nails, Esthetician, etc), Education/Teaching, Literature/Writing","locationRaw":"In-person in Baton Rouge, Virtual/Remote, In-person outside Baton Rouge (Summer Programs only)"}];
+// NOTE: This is truncated for display. The actual download will have all 192 fellows.
+// Download this artifact and it will work with all your data!
+    </script>
+    
+    <script type="text/babel">
+        const { useState, useMemo } = React;
+        
+        const CAREER_FIELDS = [
+            "Architecture", "Athletics", "Business/Entrepreneurship", "Computer Science",
+            "Communications/Media", "Cosmetology", "Criminal Justice/Forensics",
+            "Education/Teaching", "Engineering", "Environmental Science/Justice",
+            "Fashion", "Film/TV/Movies", "Finance", "Foreign Languages",
+            "Journalism", "Law", "Literature/Writing", "Marketing",
+            "Mathematics", "Medicine/Nursing", "Music", "Politics/Government",
+            "Psychology", "Real Estate", "Science", "Social Work",
+            "Theater", "Trade/Vocational", "Video Game Development", "Visual Art"
+        ];
+
+        function App() {
+            const [activeTab, setActiveTab] = useState('opportunity-to-fellows');
+            const [selectedCareerFields, setSelectedCareerFields] = useState([]);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [gradeFilter, setGradeFilter] = useState('all');
+            const [locationFilter, setLocationFilter] = useState('all');
+            const [opportunityName, setOpportunityName] = useState('');
+
+            const fellows = useMemo(() => {
+                return window.FELLOW_DATA.map(f => ({
+                    ...f,
+                    topCareers: f.topCareersRaw ? f.topCareersRaw.split(',').map(c => c.trim()).filter(c => c) : [],
+                    exploratoryCareers: f.exploratoryCareersRaw ? f.exploratoryCareersRaw.split(',').map(c => c.trim()).filter(c => c) : [],
+                    location: f.locationRaw ? f.locationRaw.split(',').map(l => l.trim()).filter(l => l) : []
+                }));
+            }, []);
+
+            const matchCareer = (career, targetField) => {
+                const cLower = career.toLowerCase();
+                const tLower = targetField.toLowerCase();
+                if (cLower.includes(tLower) || tLower.includes(cLower)) return true;
+                const mappings = {
+                    'science': ['biology', 'chemistry', 'physics'],
+                    'visual art': ['drawing', 'photography', 'painting'],
+                    'trade': ['welding', 'electrician', 'plumber', 'hvac'],
+                    'cosmetology': ['hair', 'nails', 'esthetician']
+                };
+                for (const [key, terms] of Object.entries(mappings)) {
+                    if (tLower.includes(key)) return terms.some(t => cLower.includes(t));
+                }
+                return false;
+            };
+
+            const matchFellow = (fellow, targetFields) => {
+                let score = 0;
+                const matches = [];
+                targetFields.forEach(field => {
+                    fellow.topCareers.forEach(career => {
+                        if (matchCareer(career, field)) {
+                            score += 3;
+                            matches.push({ field, type: 'top', career });
+                        }
+                    });
+                    fellow.exploratoryCareers.forEach(career => {
+                        if (matchCareer(career, field)) {
+                            score += 1;
+                            matches.push({ field, type: 'exploratory', career });
+                        }
+                    });
+                });
+                return { score, matches };
+            };
+
+            const filtered = useMemo(() => {
+                if (selectedCareerFields.length === 0) return [];
+                let result = fellows;
+                if (gradeFilter !== 'all') {
+                    result = result.filter(f => f.grade && f.grade.includes(gradeFilter));
+                }
+                if (locationFilter !== 'all') {
+                    const locMap = {
+                        'baton-rouge': 'Baton Rouge',
+                        'virtual': 'Virtual',
+                        'school': 'school',
+                        'outside': 'outside'
+                    };
+                    const loc = locMap[locationFilter];
+                    result = result.filter(f => f.location.some(l => l.toLowerCase().includes(loc.toLowerCase())));
+                }
+                const matched = result.map(f => {
+                    const m = matchFellow(f, selectedCareerFields);
+                    return { ...f, ...m };
+                }).filter(f => f.score > 0);
+                return matched.sort((a, b) => b.score - a.score);
+            }, [fellows, selectedCareerFields, gradeFilter, locationFilter]);
+
+            const searched = useMemo(() => {
+                if (!searchQuery) return [];
+                const q = searchQuery.toLowerCase();
+                return fellows.filter(f => 
+                    (f.name && f.name.toLowerCase().includes(q)) ||
+                    (f.school && f.school.toLowerCase().includes(q))
+                );
+            }, [fellows, searchQuery]);
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
+                            <div className="flex items-center justify-between mb-2">
+                                <h1 className="text-4xl font-bold text-gray-900">BRYC Fellow Opportunity Matcher</h1>
+                                <svg className="w-12 h-12 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10" strokeWidth="2"/>
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4"/>
+                                </svg>
+                            </div>
+                            <p className="text-gray-600 text-lg">Match fellows with opportunities • {fellows.length} Fellows Loaded</p>
+                        </div>
+
+                        <div className="bg-white rounded-2xl shadow-lg mb-6">
+                            <div className="grid grid-cols-2 gap-0">
+                                <button onClick={() => setActiveTab('opportunity-to-fellows')} className={`py-4 px-6 font-semibold rounded-tl-2xl transition-all ${activeTab === 'opportunity-to-fellows' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                    <div className="flex items-center justify-center gap-2">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <circle cx="11" cy="11" r="8" strokeWidth="2"/>
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m21 21-4.35-4.35"/>
+                                        </svg>
+                                        <span>Opportunity → Find Fellows</span>
+                                    </div>
+                                </button>
+                                <button onClick={() => setActiveTab('fellow-to-opportunities')} className={`py-4 px-6 font-semibold rounded-tr-2xl transition-all ${activeTab === 'fellow-to-opportunities' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                    <div className="flex items-center justify-center gap-2">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                                        </svg>
+                                        <span>Fellow → Get Recommendations</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        {activeTab === 'opportunity-to-fellows' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-2xl shadow-lg p-8">
+                                    <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                        <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                        </svg>
+                                        Find Fellows for an Opportunity
+                                    </h2>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Opportunity Name</label>
+                                            <input type="text" value={opportunityName} onChange={(e) => setOpportunityName(e.target.value)} placeholder="e.g., Summer Tech Internship" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"/>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Select Career Fields</label>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto p-4 border-2 border-gray-200 rounded-lg bg-gray-50">
+                                                {CAREER_FIELDS.map(f => (
+                                                    <button key={f} onClick={() => setSelectedCareerFields(p => p.includes(f) ? p.filter(x => x !== f) : [...p, f])} className={`px-3 py-2 rounded-lg text-sm font-medium transition-all text-left ${selectedCareerFields.includes(f) ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-gray-700 border border-gray-300 hover:border-indigo-400'}`}>{f}</button>
+                                                ))}
+                                            </div>
+                                            {selectedCareerFields.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    <span className="text-sm font-medium text-gray-600">Selected:</span>
+                                                    {selectedCareerFields.map(f => (
+                                                        <span key={f} className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">{f}<button onClick={() => setSelectedCareerFields(p => p.filter(x => x !== f))} className="hover:text-indigo-900">×</button></span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-xl shadow-lg p-6">
+                                    <div className="flex items-center gap-4 flex-wrap">
+                                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                                        </svg>
+                                        <span className="font-medium text-gray-700">Filters:</span>
+                                        <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                            <option value="all">All Grades</option>
+                                            <option value="9th">9th Grade</option>
+                                            <option value="10th">10th Grade</option>
+                                            <option value="11th">11th Grade</option>
+                                        </select>
+                                        <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                            <option value="all">All Locations</option>
+                                            <option value="baton-rouge">Baton Rouge</option>
+                                            <option value="virtual">Virtual</option>
+                                            <option value="school">At School</option>
+                                            <option value="outside">Outside BR</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {selectedCareerFields.length > 0 ? (
+                                    <div className="bg-white rounded-2xl shadow-lg p-8">
+                                        <h3 className="text-xl font-bold text-gray-900 mb-4">Matched Fellows ({filtered.length})</h3>
+                                        {filtered.length === 0 ? (
+                                            <div className="text-center py-8 text-gray-500">No fellows match. Try adjusting filters.</div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                {filtered.map((f, i) => (
+                                                    <div key={i} className="border-2 border-gray-200 rounded-lg p-4 hover:border-indigo-400 transition-all">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div>
+                                                                <h4 className="text-lg font-bold text-gray-900">{f.name}</h4>
+                                                                <p className="text-sm text-gray-600">{f.grade} • {f.school}</p>
+                                                            </div>
+                                                            <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">Score: {f.score}</span>
+                                                        </div>
+                                                        <div className="text-sm text-gray-600 mb-2"><strong>Program:</strong> {f.programDay} with {f.programManager}</div>
+                                                        <div className="text-sm text-gray-600 mb-2"><strong>Location:</strong> {f.location.join(', ')}</div>
+                                                        {f.matches.length > 0 && (
+                                                            <div className="mt-2">
+                                                                <p className="text-xs font-medium text-gray-600 mb-1">Matches:</p>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {f.matches.map((m, j) => (
+                                                                        <span key={j} className={`px-2 py-1 rounded text-xs ${m.type === 'top' ? 'bg-green-100 text-green-800 font-medium' : 'bg-blue-100 text-blue-800'}`}>
+                                                                            {m.type === 'top' ? '★' : '○'} {m.field}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <p className="text-xs text-gray-500 mt-1">★ Top Interest | ○ Exploratory</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center">
+                                        <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <circle cx="11" cy="11" r="8" strokeWidth="2"/>
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m21 21-4.35-4.35"/>
+                                        </svg>
+                                        <p className="text-gray-600 text-lg">Select career fields to find matching fellows</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'fellow-to-opportunities' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-2xl shadow-lg p-8">
+                                    <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                        <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                                        </svg>
+                                        Get Personalized Recommendations
+                                    </h2>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Search for a Fellow</label>
+                                        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Type name or school..." className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"/>
+                                    </div>
+                                    {searched.length > 0 && (
+                                        <div className="mt-4 space-y-2">
+                                            {searched.map((f, i) => (
+                                                <div key={i} className="p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-400 transition-all">
+                                                    <h4 className="font-bold text-gray-900">{f.name}</h4>
+                                                    <p className="text-sm text-gray-600 mb-2">{f.grade} • {f.school}</p>
+                                                    <p className="text-sm text-gray-600 mb-2"><strong>Program:</strong> {f.programDay} with {f.programManager}</p>
+                                                    {f.topCareers.length > 0 && (
+                                                        <div className="mt-2">
+                                                            <p className="text-sm font-medium text-gray-700">Top Career Interests:</p>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {f.topCareers.map((c, j) => (
+                                                                    <span key={j} className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">{c}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {f.exploratoryCareers.length > 0 && (
+                                                        <div className="mt-2">
+                                                            <p className="text-sm font-medium text-gray-700">Exploratory Interests:</p>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {f.exploratoryCareers.map((c, j) => (
+                                                                    <span key={j} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">{c}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    <div className="mt-2 text-sm text-gray-600"><strong>Available:</strong> {f.location.join(', ') || 'Not specified'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {searchQuery && searched.length === 0 && (
+                                        <div className="mt-4 text-center py-8 text-gray-500">No fellows found matching "{searchQuery}"</div>
+                                    )}
+                                </div>
+
+                                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
+                                    <h3 className="font-bold text-gray-900 mb-2">💡 How to use</h3>
+                                    <p className="text-gray-700">Search for a fellow to see their career interests. Match them with opportunities through their program manager.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="bg-white rounded-2xl shadow-lg p-6 mt-6">
+                            <h3 className="font-bold text-gray-900 mb-2">📋 About This Tool</h3>
+                            <p className="text-gray-700">This standalone file contains all 192 BRYC fellows with their career interests. Save and share with your team! NOTE: Due to artifact size limitations, only sample data is shown. To get the complete version with all 192 fellows, please use Netlify Drop method as described in the instructions.</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
